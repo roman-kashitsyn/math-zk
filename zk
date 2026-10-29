@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""Slip-box helper. Run `./zk help <command>` for details on a command."""
+
+import argparse
+import json
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent
+NOTES = ROOT / "notes"
+SOURCES = ROOT / "sources"
+BUILD = ROOT / "build"
+DECK = BUILD / "zk.pdf"
+MAX_PAGES = 2
+
+ID_RE = re.compile(r"^\d+(?:[a-z]+\d+)*[a-z]*$")
+KEY_RE = re.compile(r"^[a-z][a-z0-9]*$")  # author + year, e.g. munkres2000
+
+TEMPLATE = """#import "/lib/zk.typ": *
+
+= {title}
+#tags({tags})
+
+"""
+
+SOURCE_TEMPLATE = """#import "/lib/zk.typ": *
+
+= {title}
+#source(author: [{author}], year: {year})
+#tags({tags})
+
+// What it is and why you're reading it, in a sentence or two.
+
+== Where things are
+// - §12--13: topological spaces, bases → #zl("1")
+
+== Takeaways
+// Ideas worth a card of their own, each with a page reference.
+// Cross them off (or link the card) once written.
+
+"""
+
+
+def die(msg):
+    print(f"zk: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def note_files():
+    """Map ID → file: notes/<id>[-<name>].typ and sources/<key>.typ."""
+    files = {}
+    for p in sorted(NOTES.glob("*.typ")):
+        id_ = p.stem.split("-", 1)[0]
+        if not ID_RE.match(id_):
+            die(f"{p.relative_to(ROOT)}: filename must start with a Folgezettel ID")
+        if id_ in files:
+            die(f"duplicate id {id_}: {files[id_].name} and {p.name}")
+        files[id_] = p
+    for p in sorted(SOURCES.glob("*.typ")):
+        if not KEY_RE.match(p.stem) or ID_RE.match(p.stem):
+            die(f"{p.relative_to(ROOT)}: name must be a key like munkres2000")
+        files[p.stem] = p
+    return files
+
+
+def note_ids():
+    return sorted(i for i in note_files() if ID_RE.match(i))
+
+
+def refresh_ids():
+    BUILD.mkdir(exist_ok=True)
+    paths = sorted(str(p.relative_to(ROOT).with_suffix("")) for p in note_files().values())
+    (BUILD / "notes.txt").write_text("\n".join(paths) + "\n")
+
+
+def typst(*args):
+    r = subprocess.run(["typst", *args], cwd=ROOT)
+    if r.returncode != 0:
+        sys.exit(r.returncode)
+
+
+def build():
+    refresh_ids()
+    typst("compile", "zk.typ", str(DECK))
+
+
+def manifest():
+    out = subprocess.run(
+        ["typst", "query", "zk.typ", "<zk-manifest>", "--field", "value", "--one"],
+        cwd=ROOT, capture_output=True, text=True,
+    )
+    if out.returncode != 0:
+        die(out.stderr.strip())
+    return {c["id"]: c for c in json.loads(out.stdout)}
+
+
+def lookup(cards, ids):
+    missing = [i for i in ids if i not in cards]
+    if missing:
+        die("no such note: " + ", ".join(missing))
+    return [cards[i] for i in ids]
+
+
+def segments(id_):
+    return re.findall(r"\d+|[a-z]+", id_)
+
+
+def bump(seg):
+    if seg.isdigit():
+        return str(int(seg) + 1)
+    # a → b, …, z → za (keeps sort order and never needs renumbering)
+    return seg[:-1] + chr(ord(seg[-1]) + 1) if seg[-1] != "z" else seg + "a"
+
+
+def free(candidate, step):
+    existing = set(note_ids())
+    while candidate in existing:
+        candidate = step(candidate)
+    return candidate
+
+
+def cmd_new(a):
+    if not ID_RE.match(a.id):
+        die(f"bad id {a.id!r}: use Folgezettel IDs like 1, 1a, 1a2, 12b3c")
+    existing = note_files().get(a.id)
+    if existing:
+        die(f"{existing.relative_to(ROOT)} already has id {a.id}")
+    slug = re.sub(r"[^a-z0-9]+", "-", " ".join(a.title).lower()).strip("-")
+    path = NOTES / (f"{a.id}-{slug}.typ" if slug else f"{a.id}.typ")
+    tags = ", ".join(f'"{t}"' for t in a.tag)
+    NOTES.mkdir(exist_ok=True)
+    path.write_text(TEMPLATE.format(id=a.id, title=" ".join(a.title), tags=tags))
+    refresh_ids()
+    print(path.relative_to(ROOT))
+
+
+def cmd_source(a):
+    if not KEY_RE.match(a.key) or ID_RE.match(a.key):
+        die(f"bad key {a.key!r}: use lowercase author + year, e.g. munkres2000")
+    path = SOURCES / f"{a.key}.typ"
+    if path.exists():
+        die(f"{path.relative_to(ROOT)} already exists")
+    tags = ", ".join(f'"{t}"' for t in a.tag)
+    SOURCES.mkdir(exist_ok=True)
+    path.write_text(SOURCE_TEMPLATE.format(key=a.key, title=" ".join(a.title), tags=tags,
+                                        author=a.author or "", year=a.year or "none"))
+    refresh_ids()
+    print(path.relative_to(ROOT))
+
+
+def cmd_next(a):
+    if not ID_RE.match(a.id):
+        die(f"bad id {a.id!r}: next only works for Folgezettel IDs")
+    segs = segments(a.id)
+    last = segs[-1]
+    sibling = free("".join(segs[:-1]) + bump(last),
+                   lambda c: "".join(segments(c)[:-1]) + bump(segments(c)[-1]))
+    child = free(a.id + ("a" if last.isdigit() else "1"),
+                 lambda c: "".join(segments(c)[:-1]) + bump(segments(c)[-1]))
+    print(f"continue: {sibling}")
+    print(f"branch:   {child}")
+
+
+def cmd_build(a):
+    build()
+    print(DECK.relative_to(ROOT))
+
+
+def cmd_watch(a):
+    refresh_ids()
+    os.execvp("typst", ["typst", "watch", str(ROOT / "zk.typ"), str(DECK)])
+
+
+def cmd_card(a):
+    build()
+    (BUILD / "cards").mkdir(exist_ok=True)
+    for c in lookup(manifest(), a.ids):
+        out = BUILD / "cards" / f"{c['id']}.pdf"
+        typst("compile", "zk.typ", str(out), "--pages", f"{c['first']}-{c['last']}", "--no-pdf-tags")
+        print(out.relative_to(ROOT))
+
+
+def cmd_sheet(a):
+    build()
+    pairs = []
+    for c in lookup(manifest(), a.ids):
+        if c["last"] - c["first"] + 1 > MAX_PAGES:
+            print(f"zk: warning: {c['id']} is too long, printing its first two pages", file=sys.stderr)
+        pairs.append([c["first"], c["first"] + 1 if c["last"] > c["first"] else None])
+    out = BUILD / "sheet.pdf"
+    typst("compile", "lib/sheet.typ", str(out), "--root", ".", "--input", "cards=" + json.dumps(pairs))
+    print(out.relative_to(ROOT))
+    if any(p[1] for p in pairs):
+        print("print double-sided, flip on long edge, at 100% scale")
+
+
+def cmd_remarkable(a):
+    BUILD.mkdir(exist_ok=True)
+    out = BUILD / "remarkable.pdf"
+    typst("compile", "lib/remarkable.typ", str(out), "--root", ".",
+          "--input", f"pages={a.pages}")
+    print(out.relative_to(ROOT))
+
+
+def cmd_check(a):
+    build()
+    bad = False
+    for c in sorted(manifest().values(), key=lambda c: c["first"]):
+        n = c["last"] - c["first"] + 1
+        if n > MAX_PAGES:
+            print(f"{c['id']}: {n} pages; split it into more cards")
+            bad = True
+        elif n == 2:
+            print(f"{c['id']}: uses the back of the card")
+    if bad:
+        sys.exit(1)
+    print("ok")
+
+
+def main():
+    p = argparse.ArgumentParser(prog="zk", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", metavar="<command>")
+    parsers = {}
+
+    def command(name, fn, desc):
+        s = sub.add_parser(name, help=desc, description=desc)
+        s.set_defaults(fn=fn)
+        parsers[name] = s
+        return s
+
+    s = command("new", cmd_new, "Create notes/<id>-<title>.typ from the note template.")
+    s.add_argument("id", help="Folgezettel ID, e.g. 1b or 1a2")
+    s.add_argument("title", nargs="+", help="card title; also used for the filename")
+    s.add_argument("-t", "--tag", action="append", default=[], help="add a tag (repeatable)")
+
+    s = command("source", cmd_source, "Create sources/<key>.typ, a literature note for one source.")
+    s.add_argument("key", help="lowercase author + year, e.g. munkres2000")
+    s.add_argument("title", nargs="+", help="title of the book or paper")
+    s.add_argument("-a", "--author", help='e.g. "James R. Munkres"')
+    s.add_argument("-y", "--year", type=int)
+    s.add_argument("-t", "--tag", action="append", default=[], help="add a tag (repeatable)")
+
+    s = command("next", cmd_next, "Suggest free IDs to continue or branch from a note.")
+    s.add_argument("id")
+
+    command("build", cmd_build, "Build build/zk.pdf: contents, all cards, tag register.")
+    command("watch", cmd_watch, "Rebuild build/zk.pdf on every save.")
+    command("check", cmd_check, f"Build, then flag cards longer than {MAX_PAGES} sides.")
+
+    s = command("card", cmd_card, "Export build/cards/<id>.pdf, A6 front and back (IDs or keys).")
+    s.add_argument("ids", nargs="+", metavar="id")
+
+    s = command("sheet", cmd_sheet, "Impose cards 4 per A4 page into build/sheet.pdf for cutting.")
+    s.add_argument("ids", nargs="+", metavar="id")
+
+    s = command("remarkable", cmd_remarkable,
+                "Build build/remarkable.pdf, a notebook of blank cards (4 per page) for a reMarkable.")
+    s.add_argument("-p", "--pages", type=int, default=50, help="number of pages (default 50)")
+
+    s = command("help", None, "Show help for zk or for one command.")
+    s.add_argument("topic", nargs="?", choices=sorted(parsers), metavar="command")
+
+    a = p.parse_args()
+    if a.cmd is None:
+        p.print_help()
+    elif a.cmd == "help":
+        (parsers[a.topic] if a.topic else p).print_help()
+    else:
+        a.fn(a)
+
+
+if __name__ == "__main__":
+    main()
