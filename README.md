@@ -11,6 +11,7 @@ lib/zk.typ              card template, links, math environments
 lib/sheet.typ           4-up A4 imposition for printing
 lib/remarkable.typ      card templates for drafting on a reMarkable
 zk.typ                  the whole box: contents, cards, sources, tag register
+web.typ                 HTML site: individual notes, sources, and tag register
 zk                      helper script (typst ≥ 0.14, python3); ./zk help
 ```
 
@@ -160,8 +161,50 @@ For sheets, print at 100% scale (not "fit to page"). If any card has a back,
 print double-sided with the flip on the long edge. The backs are mirrored
 so they line up.
 
-Notes only compile as part of `zk.typ`. In an editor preview (e.g. Tinymist),
-preview `zk.typ`, not the individual note files.
+For PDF output, notes compile as part of `zk.typ`. In an editor preview
+(e.g. Tinymist), preview `zk.typ`, not the individual note files.
+
+## HTML and GitHub Pages
+
+With Typst 0.15 or newer:
+
+```sh
+./zk html                       # build/site/index.html and one page per note
+./zk html --serve               # build and serve at http://127.0.0.1:8000
+./zk html --serve --port 8080   # choose another port
+```
+
+The server listens on localhost; press Ctrl-C to stop. It serves the files
+in `build/site/` without watching for edits; rerun `./zk html` to rebuild.
+
+Each note appears as a paper card, 105 × 148 mm in CSS dimensions, with the
+PDF's compact typography and metadata at the bottom. Longer notes grow
+vertically, and cards fit narrower screens. The site uses the same `.typ`
+notes as the PDF, with native MathML equations, citations, parent links, backlinks,
+and a tag register. URLs use permanent IDs (`notes/2a.html`) and source keys
+(`sources/stillwell2008.html`), so renaming a note's descriptive filename
+does not change its URL. Links are relative and work under a GitHub Pages
+project path as well as locally.
+
+Inbox drafts are excluded by default. Use `./zk html --include-inbox` to
+include them. Each successful build replaces `build/site/`, removing stale
+pages; a failed build leaves the previous site intact. Links to missing or
+excluded notes fail the build.
+
+The workflow in `.github/workflows/pages.yml` tests and builds on every push
+to `main` and on pull requests, and deploys successful `main` builds to
+GitHub Pages. A push containing several commits publishes the latest one.
+It can also be run manually from the Actions tab. Generated files stay in
+`build/` and do not need to be committed.
+
+For initial setup (including forks), select **Settings → Pages → Build and
+deployment → Source → GitHub Actions**, then push the workflow to `main`.
+This repository's default site address is
+`https://roman-kashitsyn.github.io/math-zk/`.
+
+HTML and bundle export are still experimental in Typst. CI pins version
+0.15.1, and `python3 -m unittest discover -s tests` checks math, internal
+links, draft exclusion, rebuilds, and the PDF capture/filing workflow.
 
 ## Drafting on a reMarkable Paper Pro
 

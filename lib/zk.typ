@@ -18,8 +18,8 @@
 // The ID (or key) comes from the filename: `zk.typ` wraps each file in
 // `card`. The title is the file's first `=` heading.
 //
-// Notes are only ever compiled as part of `zk.typ`, which gives links,
-// backlinks and the register. Single cards are cut out of that PDF by `./zk`.
+// Notes compile as part of `zk.typ` (PDF) or `web.typ` (HTML), which give
+// links, backlinks and the register. Single PDF cards are cut out by `./zk`.
 
 // --- Card geometry ----------------------------------------------------------
 
@@ -72,8 +72,8 @@
     ..start.value,
     title: titles.first().body,
     tags: inside(<zk-tags>).map(t => t.value).flatten(),
-    first: start.location().page(),
-    last: end.location().page(),
+    first: if target() != "html" { start.location().page() },
+    last: if target() != "html" { end.location().page() },
     loc: start.location(),
   )
 }
@@ -129,18 +129,27 @@
 
 // --- Math environments ------------------------------------------------------
 
-#let _env(kind, italic: false) = (name: none, body) => block(
-  width: 100%,
-  above: 1.1em,
-  below: 1.1em,
-  {
-    text(font: meta-font, size: 0.8em, weight: "bold", fill: accent, upper(kind))
-    if name != none [ (#name)]
-    [.]
-    [ ]
-    if italic { emph(body) } else { body }
-  },
-)
+#let _env(kind, italic: false) = (name: none, body) => context {
+  if target() == "html" {
+    return html.elem("section", attrs: (class: "environment"), {
+      strong([#kind#if name != none [ (#name)].])
+      [ ]
+      if italic { emph(body) } else { body }
+    })
+  }
+  block(
+    width: 100%,
+    above: 1.1em,
+    below: 1.1em,
+    {
+      text(font: meta-font, size: 0.8em, weight: "bold", fill: accent, upper(kind))
+      if name != none [ (#name)]
+      [.]
+      [ ]
+      if italic { emph(body) } else { body }
+    },
+  )
+}
 
 #let defn = _env("Definition")
 #let thm = _env("Theorem", italic: true)
@@ -152,22 +161,34 @@
 #let proof-outline = _env("Proof outline")
 
 // Ends the front of the card: what follows goes on the back.
-#let overleaf = pagebreak()
+#let overleaf = context {
+  if target() == "html" { html.elem("hr") } else { pagebreak() }
+}
 
-#let proof(body) = block(width: 100%, above: 1.1em, below: 1.1em, {
-  emph[Proof.]
-  [ ]
-  body
-  h(1fr)
-  sym.qed
-})
+#let proof(body) = context {
+  if target() == "html" {
+    return html.elem("section", attrs: (class: "proof"))[
+      _Proof._ #body #html.elem("span", attrs: (class: "qed"))[#sym.qed]
+    ]
+  }
+  block(width: 100%, above: 1.1em, below: 1.1em, {
+    emph[Proof.]
+    [ ]
+    body
+    h(1fr)
+    sym.qed
+  })
+}
 
 // Something to come back to; rendered visibly so it isn't forgotten on paper.
 #let todo(body) = text(fill: red.darken(20%))[[TODO: #body]]
 
 // --- The card ---------------------------------------------------------------
 
-#let separator = line(length: 100%, stroke: 0.4pt + rule)
+#let separator = context {
+  if target() == "html" { html.elem("hr") }
+  else { line(length: 100%, stroke: 0.4pt + rule) }
+}
 
 #let _header = context {
   let n = page-note(here())
@@ -233,6 +254,19 @@
   }
   if parent != none and find-note(parent) == none { parent = none }
   if parent == none and back.len() == 0 and citations.len() == 0 { return }
+  if target() == "html" {
+    return html.elem("footer", attrs: (class: "relations"), {
+      if citations.len() > 0 {
+        html.elem("p")[Sources: #citations.map(c => _link(c.id, c.body, record: false)).join([; ])]
+      }
+      if parent != none {
+        html.elem("p")[Parent: #_link(parent, auto, record: false)]
+      }
+      if back.len() > 0 {
+        html.elem("p")[Linked from: #back.map(n => _link(n.id, auto, record: false)).join([, ])]
+      }
+    })
+  }
   set text(size: 8pt, fill: muted)
   set par(justify: false)
   v(1fr)
@@ -260,18 +294,44 @@
 
 // Under the title of a literature note: who wrote it and when.
 // Cite it at the bottom of another card with #cite("munkres2000")[§18].
-#let source(author: none, year: none, info: none) = {
+#let source(author: none, year: none, info: none) = context {
+  if target() == "html" {
+    return html.elem("p", attrs: (class: "source"),
+      (author, year, info).filter(x => x not in (none, [])).map(x => [#x]).join[, ])
+  }
   v(-0.5em)
   text(size: 9.2pt, (author, year, info).filter(x => x not in (none, [])).map(x => [#x]).join[, ])
 }
 
 // One card: `zk.typ` wraps every note file in this. `kind` is "card" for
 // notes/ and "source" for sources/.
-#let card(id, kind, body) = {
+#let card(id, kind, body) = context {
   if kind == "card" {
     assert(is-card-id(id), message: "note id " + id + " is not a Folgezettel ID")
   } else {
     assert(not is-card-id(id), message: "source key " + id + " must not look like a Folgezettel ID")
+  }
+
+  if target() == "html" {
+    return html.elem("article", {
+      [#metadata((id: id, kind: kind))<zk-note-start>]
+      html.elem("header", attrs: (class: "eyebrow"))[
+        #html.elem("span")[#if kind == "card" [NOTE] else [#upper(kind)]]
+        #html.elem("strong")[#id]
+      ]
+      html.elem("div", attrs: (class: "card-body"), body)
+      html.elem("div", attrs: (class: "card-meta"), {
+        context {
+          let n = find-note(id)
+          if n != none and n.tags.len() > 0 {
+            html.elem("p", attrs: (class: "tags"), n.tags.map(t =>
+              link(label("zk-tag-" + t), [#t])).join([ · ]))
+          }
+        }
+        _relations(id)
+      })
+      [#metadata(id)<zk-note-end>]
+    })
   }
 
   set page(

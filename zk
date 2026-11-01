@@ -6,8 +6,10 @@ import json
 import os
 import re
 import shlex
+import shutil
 import subprocess
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -264,6 +266,29 @@ def cmd_build(a):
     print(DECK.relative_to(ROOT))
 
 
+def cmd_html(a):
+    if not 1 <= a.port <= 65535:
+        die("port must be between 1 and 65535")
+    BUILD.mkdir(exist_ok=True)
+    paths = sorted(str(p.relative_to(ROOT).with_suffix(""))
+                   for p in note_files().values()
+                   if a.include_inbox or p.parent != INBOX)
+    (BUILD / "web-notes.txt").write_text("\n".join(paths) + "\n", encoding="utf-8")
+    # Build in isolation: failed builds keep the last site, and successful
+    # builds remove pages for deleted notes (including previously included drafts).
+    with tempfile.TemporaryDirectory(prefix="web-", dir=BUILD) as temp:
+        typst("compile", "web.typ", temp, "--features", "html,bundle", "--format", "bundle")
+        site = BUILD / "site"
+        if site.exists():
+            shutil.rmtree(site)
+        Path(temp).rename(site)
+    print("build/site/index.html", flush=True)
+    if a.serve:
+        print(f"Serving at http://127.0.0.1:{a.port}/ (Ctrl-C to stop)", flush=True)
+        os.execv(sys.executable, [sys.executable, "-m", "http.server", str(a.port),
+                                 "--bind", "127.0.0.1", "--directory", str(site)])
+
+
 def cmd_watch(a):
     refresh_ids()
     os.execvp("typst", ["typst", "watch", str(ROOT / "zk.typ"), str(DECK)])
@@ -354,6 +379,10 @@ def main():
     s.add_argument("id")
 
     command("build", cmd_build, "Build build/zk.pdf: contents, all cards, tag register.")
+    s = command("html", cmd_html, "Build build/site/: HTML notes, sources, and tag register (Typst ≥ 0.15).")
+    s.add_argument("--include-inbox", action="store_true", help="also publish unfiled inbox drafts")
+    s.add_argument("--serve", action="store_true", help="serve the built site locally using Python's HTTP server")
+    s.add_argument("--port", type=int, default=8000, help="port for --serve (default 8000)")
     command("watch", cmd_watch, "Rebuild build/zk.pdf on every save.")
     command("check", cmd_check, f"Build, then flag cards longer than {MAX_PAGES} sides.")
 
