@@ -17,4 +17,4 @@ implies multiplicative property of the absolute value:
 
 $ |z w| = |z| |w| $
 
-Source: #zl("stillwell2008")[§1.2]
+#cite("stillwell2008")[§1.2]

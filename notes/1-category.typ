@@ -19,4 +19,4 @@
     $forall f : A -> B, f = f compose "id"_A = "id"_B compose f$.
 ]
 
-Source: #zl("pierce1991")[§1]
+#cite("pierce1991")[§1]

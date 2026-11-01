@@ -6,12 +6,52 @@ PDF with clickable links, and print them as real cards.
 ```
 notes/<id>-<name>.typ   one card per file, e.g. 1a-continuous-map.typ
 sources/<key>.typ     one literature note per source, e.g. munkres2000.typ
+inbox/<timestamp>-<title>.typ unfiled thoughts, newest first in the PDF
 lib/zk.typ              card template, links, math environments
 lib/sheet.typ           4-up A4 imposition for printing
 lib/remarkable.typ      card templates for drafting on a reMarkable
 zk.typ                  the whole box: contents, cards, sources, tag register
 zk                      helper script (typst ≥ 0.14, python3); ./zk help
 ```
+
+## Capture now, file later
+
+Start a note without choosing where it belongs:
+
+```sh
+./zk jot                            # untitled draft; opens VISUAL or EDITOR if set
+./zk jot Exponential map            # optional title
+./zk jot -m 'Why does this work?'    # quick capture without opening an editor
+./zk inbox                          # list drafts, newest first
+```
+
+Drafts are ordinary Typst files in `inbox/`, named automatically by capture
+time and title, e.g. `20261030-091500-123456-exponential-map.typ`. Titles
+become lowercase words separated by hyphens; untitled drafts use `untitled`.
+No ID or tags are required. Edit the title and body whenever you like;
+editing the heading later does not automatically rename the file.
+Without `VISUAL` or `EDITOR`, `jot` simply prints the new file's path;
+`--edit` explicitly requests an editor, including when using `-m`.
+
+**Inbox notes appear in the PDF**, after the filed notes and sources, newest
+first. The contents page has an Inbox section, and each draft's header shows
+INBOX and its capture date. Run `./zk build`, or keep `./zk watch` running:
+`jot` updates the file inventory so the watcher picks up each new draft.
+Drafts use the same Typst syntax and two-sided card layout as filed notes;
+they can link to existing cards with `#zl("2a")`.
+
+When you know where a thought belongs:
+
+```sh
+./zk next 2a                        # suggest available permanent IDs
+./zk file latest 2b                 # file the most recent draft
+./zk file inbox/<timestamp>-<title>.typ 2b  # or select a particular draft
+```
+
+`file` moves the draft into `notes/`, preserves its contents, and updates the
+PDF inventory. It refuses an ID already in use. You can also select a draft
+by its filename or a unique timestamp prefix from `./zk inbox`. There is no
+need to file a draft just to read or print it.
 
 ## IDs (Folgezettel)
 
@@ -58,6 +98,10 @@ The card's ID comes from its filename, and its title is its first `=`
 heading. A link to a note that doesn't exist fails the build. Every card shows its
 parent (↑) and the cards that link to it (←) automatically.
 
+Tables use two 0.25 pt hairlines below the first (header) row, with no
+vertical or body-row borders. Use `table.header(...)` for that first row;
+the shared template supplies the rules automatically.
+
 ### Front and back
 
 A card has two sides. Keep the front self-contained and put the
@@ -96,9 +140,12 @@ A literature note is a map of the source, not a summary of it:
   Mark each one `#todo[card]` until its card exists.
 
 The mathematics itself goes on regular Folgezettel cards, in your own words.
-Cite a source by linking to it with a location, e.g.
-`#zl("munkres2000")[Munkres §18]`. The literature card then lists every card
-that cites it (←).
+Cite a source with `#cite("munkres2000")[§18]`, or use
+`#cite("munkres2000")` to show its title. References are collected at the
+bottom of the card's last side, above its parent and backlinks, in small,
+muted type. The “Source” (or “Sources”) label is automatic; you can place
+the calls anywhere in the card. The literature card then lists every card
+that cites it (←). Use `#zl` for ordinary links within the main text.
 
 ## Building and printing
 

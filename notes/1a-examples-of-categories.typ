@@ -5,10 +5,8 @@
 
 #table(
   columns: 3,
-  stroke: none,
   align: center,
-  table.header[Category][Objects][Arrows],
-  table.hline(),
+  table.header[*Category*][*Objects*][*Arrows*],
   [$"Set"$], [sets], [functions],
   [$"Poset"$], [partial orders], [monotonic maps],
   [$"Mon"$], [monoids], [monoid homomorphisms],

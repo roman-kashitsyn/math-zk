@@ -11,4 +11,4 @@ where $alpha = a + i d$ and $beta = b + i c$.
 
 $"det"(Q) = |q|^2 = a^2 + b^2 + c^2 + d^2$
 
-Source: #zl("stillwell2008")[§1.3]
+#cite("stillwell2008")[§1.3]

@@ -5,13 +5,16 @@ import argparse
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 NOTES = ROOT / "notes"
 SOURCES = ROOT / "sources"
+INBOX = ROOT / "inbox"
 BUILD = ROOT / "build"
 DECK = BUILD / "zk.pdf"
 MAX_PAGES = 2
@@ -50,7 +53,7 @@ def die(msg):
 
 
 def note_files():
-    """Map ID → file: notes/<id>[-<name>].typ and sources/<key>.typ."""
+    """Map permanent IDs, source keys, and temporary jot IDs to files."""
     files = {}
     for p in sorted(NOTES.glob("*.typ")):
         id_ = p.stem.split("-", 1)[0]
@@ -63,6 +66,8 @@ def note_files():
         if not KEY_RE.match(p.stem) or ID_RE.match(p.stem):
             die(f"{p.relative_to(ROOT)}: name must be a key like munkres2000")
         files[p.stem] = p
+    for p in sorted(INBOX.glob("*.typ")):
+        files["jot-" + p.stem] = p
     return files
 
 
@@ -133,6 +138,96 @@ def cmd_new(a):
     tags = ", ".join(f'"{t}"' for t in a.tag)
     NOTES.mkdir(exist_ok=True)
     path.write_text(TEMPLATE.format(id=a.id, title=" ".join(a.title), tags=tags))
+    refresh_ids()
+    print(path.relative_to(ROOT))
+
+
+def edit_draft(path, required=False):
+    editor = os.environ.get("VISUAL") or os.environ.get("EDITOR")
+    if not editor:
+        if required:
+            die("draft saved; set VISUAL or EDITOR to open it automatically")
+        return
+    try:
+        result = subprocess.run([*shlex.split(editor), str(path)], cwd=ROOT)
+    except (OSError, ValueError) as e:
+        die(f"draft saved; could not open editor: {e}")
+    if result.returncode:
+        die(f"draft saved; editor exited with status {result.returncode}")
+
+
+def cmd_jot(a):
+    INBOX.mkdir(exist_ok=True)
+    title = " ".join(a.title) or "Untitled"
+    body = TEMPLATE.format(title=title, tags="")
+    if a.message is not None:
+        body += a.message + "\n"
+    # Exclusive creation also protects captures made at the same instant.
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:100].rstrip("-") or "untitled"
+    path = INBOX / f"{stamp}-{slug}.typ"
+    suffix = 0
+    while True:
+        try:
+            with path.open("x", encoding="utf-8") as f:
+                f.write(body)
+            break
+        except FileExistsError:
+            suffix += 1
+            path = INBOX / f"{stamp}-{suffix}-{slug}.typ"
+    print(path.relative_to(ROOT), flush=True)
+    refresh_ids()
+    if a.edit or a.message is None:
+        edit_draft(path, required=a.edit)
+
+
+def draft_files():
+    return sorted(INBOX.glob("*.typ"), reverse=True)
+
+
+def draft_title(text):
+    match = re.search(r"^=\s+(.+)$", text, re.MULTILINE)
+    return match.group(1).strip() if match else "Untitled"
+
+
+def cmd_inbox(a):
+    drafts = draft_files()
+    if not drafts:
+        print("Inbox is empty. Capture a thought with ./zk jot.")
+    for path in drafts:
+        print(f"{path.relative_to(ROOT)}  {draft_title(path.read_text(encoding='utf-8'))}")
+
+
+def cmd_file(a):
+    if not ID_RE.fullmatch(a.id):
+        die(f"bad id {a.id!r}: use a Folgezettel ID like 1a2")
+    existing = note_files().get(a.id)
+    if existing:
+        die(f"{existing.relative_to(ROOT)} already has id {a.id}")
+    drafts = draft_files()
+    if a.draft == "latest":
+        matches = drafts[:1]
+    else:
+        matches = [p for p in drafts if a.draft in
+                   (p.stem, p.name, str(p.relative_to(ROOT)), str(p))]
+        if not matches:
+            matches = [p for p in drafts if p.stem.startswith(a.draft)]
+    if not matches:
+        die(f"no inbox draft matches {a.draft!r}; run ./zk inbox")
+    if len(matches) != 1:
+        die(f"ambiguous draft {a.draft!r}; use a longer name from ./zk inbox")
+    draft = matches[0]
+    contents = draft.read_bytes()
+    title = draft_title(contents.decode("utf-8"))
+    slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    path = NOTES / (f"{a.id}-{slug}.typ" if slug else f"{a.id}.typ")
+    NOTES.mkdir(exist_ok=True)
+    try:
+        with path.open("xb") as f:
+            f.write(contents)
+    except FileExistsError:
+        die(f"{path.relative_to(ROOT)} already exists")
+    draft.unlink()
     refresh_ids()
     print(path.relative_to(ROOT))
 
@@ -236,6 +331,17 @@ def main():
     s.add_argument("id", help="Folgezettel ID, e.g. 1b or 1a2")
     s.add_argument("title", nargs="+", help="card title; also used for the filename")
     s.add_argument("-t", "--tag", action="append", default=[], help="add a tag (repeatable)")
+
+    s = command("jot", cmd_jot, "Capture an unfiled Typst draft in inbox/, without an ID or tags.")
+    s.add_argument("title", nargs="*", help="optional title (default: Untitled)")
+    s.add_argument("-m", "--message", help="initial note text; skips the editor unless --edit is given")
+    s.add_argument("-e", "--edit", action="store_true", help="require opening VISUAL or EDITOR after saving")
+
+    command("inbox", cmd_inbox, "List unfiled drafts, newest first.")
+
+    s = command("file", cmd_file, "Move an inbox draft into notes/ with a permanent ID, preserving its contents.")
+    s.add_argument("draft", help="draft path, name, unique timestamp prefix, or latest")
+    s.add_argument("id", help="permanent Folgezettel ID, e.g. 1a2")
 
     s = command("source", cmd_source, "Create sources/<key>.typ, a literature note for one source.")
     s.add_argument("key", help="lowercase author + year, e.g. munkres2000")

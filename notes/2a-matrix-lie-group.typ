@@ -13,4 +13,4 @@
   and $A = lim_(k -> infinity) A_k$ has an inverse, then $A in G$.
 ]
 
-Source: #zl("stillwell2008")[§1.1]
+#cite("stillwell2008")[§1.1]

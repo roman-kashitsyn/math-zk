@@ -40,7 +40,7 @@
 
 // Sort key so that 1 < 1a < 1a1 < 1a2 < 1b < 2 < 10.
 #let id-key(id) = (id-segments(id)
-  .map(s => if s.at(0) in "0123456789" { "0" * (6 - s.len()) + s } else { s })
+  .map(s => if s.at(0) in "0123456789" { "0" * calc.max(0, 6 - s.len()) + s } else { s })
   .join("."))
 
 // Folgezettel IDs start with a digit; literature keys (munkres2000) don't.
@@ -52,8 +52,9 @@
   if segs.len() > 1 { segs.slice(0, -1).join() }
 }
 
-#let id-tag(id) = box(
-  text(font: id-font, size: 0.72em, fill: accent, "[" + id + "]"),
+#let id-tag(id, ink: accent) = box(
+  text(font: id-font, size: 0.72em, fill: ink,
+    "[" + if id.starts-with("jot-") { "inbox" } else { id } + "]"),
 )
 
 // --- Introspection ----------------------------------------------------------
@@ -101,7 +102,7 @@
 // `#zl("1a")[continuous]` shows your own text. Both are followed by the ID,
 // which is what you use to find the card in the physical box.
 // Unknown IDs are a compile error, so broken links can't slip through.
-#let _link(id, body, record: true) = {
+#let _link(id, body, record: true, ink: accent) = {
   if record [#metadata(id)<zk-link>]
   context {
     let target = find-note(id)
@@ -112,11 +113,19 @@
       panic("link to unknown note " + id + where)
     }
     let shown = if body == auto { target.title } else { body }
-    link(target.loc, [#shown~#id-tag(id)])
+    show link: set text(fill: ink)
+    link(target.loc, [#shown~#id-tag(id, ink: ink)])
   }
 }
 
 #let zl(id, ..body) = _link(id, body.pos().at(0, default: auto))
+
+// Collect a source reference for the bottom of the card, with an automatic
+// label: #cite("stillwell2008")[§1.1]. Like zl, omitting the text uses the title.
+#let cite(id, ..body) = {
+  [#metadata((id: id, body: body.pos().at(0, default: auto)))<zk-citation>]
+  [#metadata(id)<zk-link>]
+}
 
 // --- Math environments ------------------------------------------------------
 
@@ -140,6 +149,7 @@
 #let cor = _env("Corollary", italic: true)
 #let example = _env("Example")
 #let remark = _env("Remark")
+#let proof-outline = _env("Proof outline")
 
 // Ends the front of the card: what follows goes on the back.
 #let overleaf = pagebreak()
@@ -157,6 +167,8 @@
 
 // --- The card ---------------------------------------------------------------
 
+#let separator = line(length: 100%, stroke: 0.4pt + rule)
+
 #let _header = context {
   let n = page-note(here())
   if n == none { return }
@@ -167,12 +179,18 @@
     if here().page() > n.first {
       [#n.title · BACK]
     } else {
-      text(tracking: 0.08em, if n.kind == "source" { "SOURCE" } else { "NOTE" })
+      text(tracking: 0.08em, if n.kind == "source" { "SOURCE" }
+        else if n.kind == "inbox" { "INBOX" } else { "NOTE" })
     },
-    text(font: id-font, size: 10.5pt, weight: "bold", fill: accent, n.id),
+    text(font: id-font, size: if n.kind == "inbox" { 8pt } else { 10.5pt },
+      weight: "bold", fill: accent,
+      if n.kind == "inbox" {
+        let date = n.id.slice(4, 12)
+        date.slice(0, 4) + "-" + date.slice(4, 6) + "-" + date.slice(6, 8)
+      } else { n.id }),
   )
   v(-4pt)
-  line(length: 100%, stroke: 0.4pt + rule)
+  separator
 }
 
 #let _footer = context {
@@ -207,15 +225,29 @@
   // parent (e.g. 2a without 2) just means no "↑" line rather than an error.
   let parent = id-parent(id)
   let back = _backlinks(id).filter(n => n.id != parent)
+  let start = query(<zk-note-start>).find(n => n.value.id == id)
+  let end = query(<zk-note-end>).find(n => n.value == id)
+  let citations = if end == none { () } else {
+    query(selector(<zk-citation>).after(start.location()).before(end.location()))
+      .map(c => c.value)
+  }
   if parent != none and find-note(parent) == none { parent = none }
-  if parent == none and back.len() == 0 { return }
+  if parent == none and back.len() == 0 and citations.len() == 0 { return }
   set text(size: 8pt, fill: muted)
   set par(justify: false)
   v(1fr)
-  line(length: 100%, stroke: 0.3pt + rule)
-  v(-2pt)
-  if parent != none [↑ #_link(parent, auto, record: false) \ ]
-  if back.len() > 0 [← #back.map(n => _link(n.id, auto, record: false)).join([, ])]
+  block(breakable: false, width: 100%, {
+    line(length: 100%, stroke: 0.3pt + rule)
+    v(-2pt)
+    if citations.len() > 0 {
+      set text(font: meta-font, size: 7.5pt)
+      let label = if citations.len() == 1 { "Source" } else { "Sources" }
+      [#label: #citations.map(c => _link(c.id, c.body, record: false, ink: muted)).join([; ])]
+      if parent != none or back.len() > 0 { parbreak() }
+    }
+    if parent != none [↑ #_link(parent, auto, record: false) \ ]
+    if back.len() > 0 [← #back.map(n => _link(n.id, auto, record: false)).join([, ])]
+  })
 }
 
 // Tags for the footer and the register: `#tags("topology", "definition")`.
@@ -227,8 +259,7 @@
 }
 
 // Under the title of a literature note: who wrote it and when.
-// Link to the source like any card, with a location as the link text:
-// #zl("munkres2000")[§18].
+// Cite it at the bottom of another card with #cite("munkres2000")[§18].
 #let source(author: none, year: none, info: none) = {
   v(-0.5em)
   text(size: 9.2pt, (author, year, info).filter(x => x not in (none, [])).map(x => [#x]).join[, ])
@@ -269,6 +300,13 @@
   set par(justify: false, leading: 0.75em, spacing: 1.1em)
   set list(indent: 0.4em, tight: false, spacing: 1.1em)
   set enum(indent: 0.4em, tight: false, spacing: 1.1em)
+  // Two hairlines below the first (header) row; no other table borders.
+  set table(
+    row-gutter: (1.5pt, 0pt),
+    stroke: (_, y) => if y == 0 { (bottom: 0.25pt) }
+      else if y == 1 { (top: 0.25pt) }
+      else { none },
+  )
   // Keep Typst's default New Computer Modern Math.
   show heading: set text(font: meta-font)
   show heading.where(level: 1): set text(font: meta-font, size: 17pt)

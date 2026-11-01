@@ -5,13 +5,18 @@
 
 #show: slipbox
 
-// build/notes.txt lists `notes/<id>-<name>` and `sources/<key>`, without `.typ`.
+// build/notes.txt lists note, source, and inbox paths without `.typ`.
 // For notes only the ID before the first `-` counts.
 #let paths = read("build/notes.txt").split("\n").map(str.trim).filter(s => s != "")
-#let file(path) = (id: path.split("/").last().split("-").first(), path: path)
+#let file(path) = (
+  id: if path.starts-with("inbox/") { "jot-" + path.split("/").last() }
+      else { path.split("/").last().split("-").first() },
+  path: path,
+)
 #let cards = paths.filter(p => p.starts-with("notes/")).map(file).sorted(key: f => id-key(f.id))
 #let sources = paths.filter(p => p.starts-with("sources/")).map(file).sorted(key: f => f.id)
-#let files = cards + sources
+#let inbox = paths.filter(p => p.starts-with("inbox/")).map(file).sorted(key: f => f.id).rev()
+#let files = cards + sources + inbox
 
 // --- Contents ---------------------------------------------------------------
 
@@ -32,12 +37,21 @@
     heading(level: 2, outlined: false)[Sources]
     for n in lit { entry(n, 0, 7em) }
   }
+  let drafts = notes.filter(n => n.kind == "inbox")
+  if drafts.len() > 0 {
+    heading(level: 2, outlined: false)[Inbox · newest first]
+    for n in drafts {
+      block(above: 0.45em, below: 0.45em, link(n.loc,
+        [#n.title #box(width: 1fr, repeat[.~]) #n.first]))
+    }
+  }
 }
 
 // --- Cards ------------------------------------------------------------------
 
 #for f in files {
-  card(f.id, if f.path.starts-with("sources/") { "source" } else { "card" }, include f.path + ".typ")
+  card(f.id, if f.path.starts-with("sources/") { "source" }
+    else if f.path.starts-with("inbox/") { "inbox" } else { "card" }, include f.path + ".typ")
 }
 
 // --- Register (tag → cards) -------------------------------------------------
@@ -56,7 +70,8 @@
   }
   for t in by-tag.keys().sorted() {
     block(above: 0.5em, below: 0.5em)[
-      *#t* --- #by-tag.at(t).map(n => link(n.loc, id-tag(n.id))).join(" ")
+      *#t* --- #by-tag.at(t).map(n => link(n.loc,
+        if n.kind == "inbox" { [#n.title #id-tag(n.id)] } else { id-tag(n.id) })).join(" ")
     ]
   }
 }
