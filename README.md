@@ -92,7 +92,7 @@ freely. A plain `<id>.typ` works too. Links always use the bare ID.
 #defn[ ... ]   #thm(name: [Urysohn])[ ... ]   #proof[ ... ]
 #lemma #prop #cor #example #remark #todo
 
-A link: #zl("1a") shows the target's title, #zl("1a")[my text] shows yours.
+A link: #zl("1a") shows only [1a]; #zl("1a")[my text] shows your text followed by [1a].
 ```
 
 The card's ID comes from its filename, and its title is its first `=`

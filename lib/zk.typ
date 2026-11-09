@@ -98,11 +98,11 @@
 
 // --- Links ------------------------------------------------------------------
 
-// Link to another card: `#zl("1a")` shows the target's title,
-// `#zl("1a")[continuous]` shows your own text. Both are followed by the ID,
-// which is what you use to find the card in the physical box.
+// Link to another card: `#zl("1a")` shows only [1a].
+// `#zl("1a")[continuous]` shows your own text followed by the ID.
+// Footer links retain titles to identify the related cards.
 // Unknown IDs are a compile error, so broken links can't slip through.
-#let _link(id, body, record: true, ink: accent) = {
+#let _link(id, body, record: true, ink: accent, compact: false) = {
   if record [#metadata(id)<zk-link>]
   context {
     let target = find-note(id)
@@ -114,14 +114,18 @@
     }
     let shown = if body == auto { target.title } else { body }
     show link: set text(fill: ink)
-    link(target.loc, [#shown~#id-tag(id, ink: ink)])
+    link(target.loc, if compact and body == auto {
+      id-tag(id, ink: ink)
+    } else {
+      [#shown~#id-tag(id, ink: ink)]
+    })
   }
 }
 
-#let zl(id, ..body) = _link(id, body.pos().at(0, default: auto))
+#let zl(id, ..body) = _link(id, body.pos().at(0, default: auto), compact: true)
 
 // Collect a source reference for the bottom of the card, with an automatic
-// label: #cite("stillwell2008")[§1.1]. Like zl, omitting the text uses the title.
+// label: #cite("stillwell2008")[§1.1]. Omitting the text uses the title.
 #let cite(id, ..body) = {
   [#metadata((id: id, body: body.pos().at(0, default: auto)))<zk-citation>]
   [#metadata(id)<zk-link>]
