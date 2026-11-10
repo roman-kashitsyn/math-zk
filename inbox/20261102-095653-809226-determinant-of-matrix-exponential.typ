@@ -4,8 +4,7 @@
 #tags("lie-theory")
 
 #thm[
-  For any $X in bb(C)^(n times n)$:
- $ det(e^X) = e^("Tr"(X)) $
+  For any $X in bb(C)^(n times n)$: $det(e^X) = e^("Tr"(X))$
 ]
 
 #proof-outline[
