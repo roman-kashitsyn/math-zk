@@ -34,6 +34,11 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 .relations { border-top: 1px solid var(--rule); margin-top: 2.5rem; padding-top: .75rem; }
 .note-list { list-style: none; padding: 0; }
 .note-list li { margin: .6rem 0; }
+.note-tree .note-tree {
+  margin: .35rem 0 .7rem .4rem;
+  padding-left: 1.1rem;
+  border-left: 1px solid var(--rule);
+}
 .tag-group { margin-top: 1.5rem; }
 hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
 table { border-collapse: collapse; display: block; max-width: 100%; overflow-x: auto; }
@@ -83,6 +88,8 @@ article .eyebrow strong {
   text-align: right;
 }
 .card-body { min-width: 0; }
+/* Override the frame's inline em dimensions when the card shrinks. */
+.card-svg > svg { display: block; width: 100% !important; height: auto !important; }
 article h1 { font-size: 17pt; margin: 0 0 1em; }
 article h2 { font-size: 10pt; margin: 1.5em 0 .6em; }
 article h3 { font-size: 10pt; }

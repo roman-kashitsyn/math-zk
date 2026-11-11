@@ -19,15 +19,25 @@ class Page(HTMLParser):
         self.ids = set()
         self.links = []
         self.tags = []
+        self.stack = []
+        self.tree_links = []
         self.feed(path.read_text(encoding="utf-8"))
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
         self.tags.append(tag)
+        if tag == "ul":
+            self.stack.append("note-tree" in attrs.get("class", "").split())
         if "id" in attrs:
             self.ids.add(attrs["id"])
         if "href" in attrs:
             self.links.append(attrs["href"])
+            if any(self.stack):
+                self.tree_links.append((attrs["href"], sum(self.stack)))
+
+    def handle_endtag(self, tag):
+        if tag == "ul":
+            self.stack.pop()
 
 
 @unittest.skipUnless(shutil.which("typst"), "Typst is not installed")
@@ -61,15 +71,15 @@ class HtmlTests(unittest.TestCase):
         self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
         return result
 
-    def test_math_navigation_and_document_structure(self):
-        result = self.build()
+    def check_navigation(self, renderer):
+        result = self.build("--card-renderer", renderer)
         self.assertNotIn("was ignored", result.stderr)
         site = self.root / "build/site"
         pages = {p.resolve(): Page(p) for p in site.rglob("*.html")}
         self.assertEqual(len(pages), 4)
         for path, page in pages.items():
             with self.subTest(page=path.name):
-                for tag in ("html", "head", "body", "title", "h1"):
+                for tag in ("html", "head", "body", "title"):
                     self.assertEqual(page.tags.count(tag), 1, (tag, page.tags))
                 for href in page.links:
                     url = urlsplit(href)
@@ -81,13 +91,42 @@ class HtmlTests(unittest.TestCase):
                     if url.fragment:
                         self.assertIn(unquote(url.fragment), pages[target].ids, (path, href))
         child = (site / "notes/1a.html").read_text()
-        for expected in ("<math", "<mtable", "<mfrac", "<hr", "Parent:", "Sources:", "§2", "<title>Child"):
+        for expected in ("Parent:", "Sources:", "§2", "<title>Child"):
             self.assertIn(expected, child)
+        if renderer == "html":
+            for expected in ("<h1", "<math", "<mtable", "<mfrac", "<hr"):
+                self.assertIn(expected, child)
+        else:
+            self.assertIn("<svg", child)
+            self.assertIn('class="card-body card-svg"', child)
+            self.assertNotIn("<math", child)
+            self.assertNotIn("<foreignObject", child)
         source = (site / "sources/book2000.html").read_text()
         self.assertIn("Linked from:", source)
         self.assertIn("Child", source)
         self.assertNotIn("Unfiled", source)
         self.assertFalse((site / "inbox").exists())
+
+    def test_svg_math_and_navigation(self):
+        self.check_navigation("svg")
+
+    def test_html_math_and_navigation(self):
+        self.check_navigation("html")
+
+    def test_note_hierarchy_with_missing_ancestors(self):
+        self.note("notes/1a1-deep.typ", "= Grandchild")
+        self.note("notes/1a2a-gap.typ", "= Missing immediate parent")
+        self.note("notes/1ab-sibling.typ", "= Sibling of 1a")
+        self.note("notes/3b-orphan.typ", "= Missing root")
+        self.note("notes/10-last.typ", "= Last")
+        self.build()
+        tree = Page(self.root / "build/site/index.html").tree_links
+        self.assertEqual([(urlsplit(href).path, depth) for href, depth in tree], [
+            ("notes/1.html", 1), ("notes/1a.html", 2),
+            ("notes/1a1.html", 3), ("notes/1a2a.html", 3),
+            ("notes/1ab.html", 2), ("notes/3b.html", 1),
+            ("notes/10.html", 1),
+        ])
 
     def test_rebuild_removes_deleted_notes_and_excluded_drafts(self):
         self.note("notes/2-removed.typ", "= Temporary")

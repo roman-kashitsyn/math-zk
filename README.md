@@ -170,6 +170,7 @@ With Typst 0.15 or newer:
 
 ```sh
 ./zk html                       # build/site/index.html and one page per note
+./zk html --card-renderer html   # compare with native HTML/MathML cards
 ./zk html --serve               # build and serve at http://127.0.0.1:8000
 ./zk html --serve --port 8080   # choose another port
 ```
@@ -177,11 +178,27 @@ With Typst 0.15 or newer:
 The server listens on localhost; press Ctrl-C to stop. It serves the files
 in `build/site/` without watching for edits; rerun `./zk html` to rebuild.
 
+The notes index follows the same Folgezettel hierarchy as the PDF contents,
+with nested lists. Notes whose immediate parent is missing appear beneath
+their nearest existing ancestor, or at the top level if none exists.
+Sources, inbox drafts, and tag results remain flat lists.
+
 Each note appears as a paper card, 105 × 148 mm in CSS dimensions, with the
-PDF's compact typography and metadata at the bottom. Longer notes grow
-vertically, and cards fit narrower screens. The site uses the same `.typ`
-notes as the PDF, with native MathML equations, citations, parent links, backlinks,
-and a tag register. URLs use permanent IDs (`notes/2a.html`) and source keys
+PDF's compact typography and metadata at the bottom. By default, card bodies
+are inline SVG, laid out by Typst with the PDF's fonts, equation layout, and
+table rules. This avoids relying on the browser's MathML rendering for complex
+equations. Text and glyphs are vector outlines, so cards stay sharp when zoomed
+and need no web fonts or JavaScript. Citations, parent links, backlinks, and
+tags remain HTML; links within SVG card bodies are clickable too.
+
+Longer notes grow vertically, `#overleaf` becomes a horizontal rule, and
+cards scale to fit narrower screens. SVG text cannot be selected, searched
+with the browser's text search, or read as semantic mathematics by a screen
+reader. Use `--card-renderer html` for selectable text and native MathML, or
+the PDF for the exact paginated front/back layout and printing.
+
+The site uses the same `.typ` notes as the PDF. URLs use permanent IDs
+(`notes/2a.html`) and source keys
 (`sources/stillwell2008.html`), so renaming a note's descriptive filename
 does not change its URL. Links are relative and work under a GitHub Pages
 project path as well as locally.
@@ -203,8 +220,9 @@ This repository's default site address is
 `https://roman-kashitsyn.github.io/math-zk/`.
 
 HTML and bundle export are still experimental in Typst. CI pins version
-0.15.1, and `python3 -m unittest discover -s tests` checks math, internal
-links, draft exclusion, rebuilds, and the PDF capture/filing workflow.
+0.15.1, and `python3 -m unittest discover -s tests` checks both card renderers,
+the note hierarchy, internal links, draft exclusion, rebuilds, and the PDF
+capture/filing workflow.
 
 ## Drafting on a reMarkable Paper Pro
 

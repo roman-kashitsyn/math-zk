@@ -13,6 +13,24 @@
 #let sources = paths.filter(p => p.starts-with("sources/")).map(file).sorted(key: f => f.id)
 #let inbox = paths.filter(p => p.starts-with("inbox/")).map(file).sorted(key: f => f.id).rev()
 
+// Attach to the nearest existing ancestor, so missing intermediate IDs do
+// not hide notes or turn similar prefixes (1a and 1ab) into parent/child.
+#let note-tree(entries, parent: none) = {
+  let parent-of(n) = {
+    let p = id-parent(n.id)
+    while p != none and not entries.any(e => e.id == p) { p = id-parent(p) }
+    p
+  }
+  html.elem("ul", attrs: (class: "note-list note-tree"), {
+    for n in entries.filter(n => parent-of(n) == parent) {
+      html.elem("li", {
+        link(n.loc)[#id-tag(n.id) #n.title]
+        if entries.any(e => parent-of(e) == n.id) { note-tree(entries, parent: n.id) }
+      })
+    }
+  })
+}
+
 #let shell(body, home: false) = {
   set text(lang: "en")
   show heading: it => html.elem("h" + str(calc.min(it.level, 6)), it.body)
@@ -38,11 +56,15 @@
       let entries = notes.filter(n => n.kind == kind)
       if entries.len() > 0 {
         heading(level: 2, title)
-        html.elem("ul", attrs: (class: "note-list"), {
-          for n in entries {
-            html.elem("li", link(n.loc)[#id-tag(n.id) #n.title])
-          }
-        })
+        if kind == "card" {
+          note-tree(entries)
+        } else {
+          html.elem("ul", attrs: (class: "note-list"), {
+            for n in entries {
+              html.elem("li", link(n.loc)[#id-tag(n.id) #n.title])
+            }
+          })
+        }
       }
     }
     heading(level: 2)[Tags]

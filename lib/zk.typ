@@ -307,6 +307,35 @@
   text(size: 9.2pt, (author, year, info).filter(x => x not in (none, [])).map(x => [#x]).join[, ])
 }
 
+// --- Document setup ---------------------------------------------------------
+
+#let card-style(body) = {
+  set text(font: text-font, size: 10pt, lang: "en")
+  set par(justify: false, leading: 0.75em, spacing: 1.1em)
+  set list(indent: 0.4em, tight: false, spacing: 1.1em)
+  set enum(indent: 0.4em, tight: false, spacing: 1.1em)
+  // Two hairlines below the first (header) row; no other table borders.
+  set table(
+    row-gutter: (1.5pt, 0pt),
+    stroke: (_, y) => if y == 0 { (bottom: 0.25pt) }
+      else if y == 1 { (top: 0.25pt) }
+      else { none },
+  )
+  // Keep Typst's default New Computer Modern Math.
+  show heading: set text(font: meta-font)
+  show heading.where(level: 1): set text(font: meta-font, size: 17pt)
+  show heading.where(level: 1): set block(above: 0pt, below: 1.05em)
+  show heading.where(level: 2): set text(font: meta-font, size: 10pt)
+  show link: set text(fill: accent)
+  body
+}
+
+#let slipbox(body) = {
+  set document(title: "Slip-box")
+  set page(paper: card-paper, margin: (x: 7mm, y: 9mm))
+  card-style(body)
+}
+
 // One card: `zk.typ` wraps every note file in this. `kind` is "card" for
 // notes/ and "source" for sources/.
 #let card(id, kind, body) = context {
@@ -323,7 +352,16 @@
         #html.elem("span")[#if kind == "card" [NOTE] else [#upper(kind)]]
         #html.elem("strong")[#id]
       ]
-      html.elem("div", attrs: (class: "card-body"), body)
+      if sys.inputs.at("card-renderer", default: "svg") == "svg" {
+        html.elem("div", attrs: (class: "card-body card-svg"), html.frame(context {
+          // Metadata in the frame remains visible to bundle queries and links.
+          show heading: it => block(text(font: meta-font, it.body))
+          show pagebreak: line(length: 100%, stroke: 0.4pt + rule)
+          card-style(block(width: 89mm, body))
+        }))
+      } else {
+        html.elem("div", attrs: (class: "card-body"), body)
+      }
       html.elem("div", attrs: (class: "card-meta"), {
         context {
           let n = find-note(id)
@@ -353,29 +391,4 @@
   body
   _relations(id)
   [#metadata(id)<zk-note-end>]
-}
-
-// --- Document setup ---------------------------------------------------------
-
-#let slipbox(body) = {
-  set document(title: "Slip-box")
-  set page(paper: card-paper, margin: (x: 7mm, y: 9mm))
-  set text(font: text-font, size: 10pt, lang: "en")
-  set par(justify: false, leading: 0.75em, spacing: 1.1em)
-  set list(indent: 0.4em, tight: false, spacing: 1.1em)
-  set enum(indent: 0.4em, tight: false, spacing: 1.1em)
-  // Two hairlines below the first (header) row; no other table borders.
-  set table(
-    row-gutter: (1.5pt, 0pt),
-    stroke: (_, y) => if y == 0 { (bottom: 0.25pt) }
-      else if y == 1 { (top: 0.25pt) }
-      else { none },
-  )
-  // Keep Typst's default New Computer Modern Math.
-  show heading: set text(font: meta-font)
-  show heading.where(level: 1): set text(font: meta-font, size: 17pt)
-  show heading.where(level: 1): set block(above: 0pt, below: 1.05em)
-  show heading.where(level: 2): set text(font: meta-font, size: 10pt)
-  show link: set text(fill: accent)
-  body
 }
