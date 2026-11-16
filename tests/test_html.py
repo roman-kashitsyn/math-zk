@@ -1,6 +1,7 @@
 """Integration checks for Typst's experimental HTML/bundle exporter."""
 
 from html.parser import HTMLParser
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -107,6 +108,23 @@ class HtmlTests(unittest.TestCase):
         self.assertNotIn("Unfiled", source)
         self.assertFalse((site / "inbox").exists())
 
+        # Drawer cards reuse the selected renderer, while their search text
+        # comes from semantic HTML even when the visible mathematics is SVG.
+        cards = json.loads((site / "cards.json").read_text())
+        self.assertEqual([card["id"] for card in cards], ["1", "1a", "book2000"])
+        child_card = cards[1]
+        self.assertEqual(child_card["title"], "Child ℂ")
+        self.assertIn("Let", child_card["text"])
+        self.assertIn("A. Author", cards[2]["text"])
+        self.assertIn("<svg" if renderer == "svg" else "<math", child_card["html"])
+        self.assertEqual(child_card["path"], "notes/1a.html")
+        for asset in ("drawer.css", "drawer.js", "index.js"):
+            self.assertTrue((site / asset).is_file())
+        index = (site / "index.html").read_text()
+        self.assertIn('id="static-index"', index)
+        self.assertIn('id="slip-workbench" hidden', index)
+        self.assertIn('id="index-view-switch"', index)
+
     def test_svg_math_and_navigation(self):
         self.check_navigation("svg")
 
@@ -137,6 +155,9 @@ class HtmlTests(unittest.TestCase):
         self.build()
         self.assertFalse((site / "notes/2.html").exists())
         self.assertFalse((site / "inbox").exists())
+        cards = json.loads((site / "cards.json").read_text())
+        self.assertNotIn("2", [card["id"] for card in cards])
+        self.assertFalse(any(card["path"].startswith("inbox/") for card in cards))
 
     def test_broken_link_fails_without_replacing_previous_site(self):
         self.build()

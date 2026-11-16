@@ -267,6 +267,8 @@ def cmd_build(a):
 
 
 def cmd_html(a):
+    from lib.site import write_drawer_data
+
     if not 1 <= a.port <= 65535:
         die("port must be between 1 and 65535")
     BUILD.mkdir(exist_ok=True)
@@ -279,6 +281,15 @@ def cmd_html(a):
     with tempfile.TemporaryDirectory(prefix="web-", dir=BUILD) as temp:
         typst("compile", "web.typ", temp, "--features", "html,bundle", "--format", "bundle",
               "--input", f"card-renderer={a.card_renderer}")
+        if a.card_renderer == "html":
+            write_drawer_data(Path(temp), Path(temp))
+        else:
+            # SVG preserves the printed mathematics but contains glyph paths,
+            # not searchable text. A semantic export supplies the search text.
+            with tempfile.TemporaryDirectory(prefix="search-", dir=BUILD) as search_temp:
+                typst("compile", "web.typ", search_temp, "--features", "html,bundle",
+                      "--format", "bundle", "--input", "card-renderer=html")
+                write_drawer_data(Path(temp), Path(search_temp))
         site = BUILD / "site"
         if site.exists():
             shutil.rmtree(site)

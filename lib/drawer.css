@@ -1,0 +1,402 @@
+/* The static index and note pages keep their original, narrow reading column. */
+body.drawer-view {
+  max-width: 1500px;
+}
+body.drawer-view > .site-header {
+  margin-bottom: 0;
+}
+[hidden] {
+  display: none !important;
+}
+
+/* White paper stays white in either system color scheme. */
+#slip-workbench {
+  color-scheme: light dark;
+  position: relative;
+  --bench-paper: #ffffff;
+  --bench-paperback: #f5f5f3;
+  --bench-paperedge: #b6b9b2;
+  --bench-ghost: light-dark(#d4d4ce, #acb0a8);
+  --bench-ghost-ink: light-dark(#777d76, #596356);
+  --bench-fiber: #454a4004;
+  --bench-ink: light-dark(#32382f, #2c342a);
+  --bench-muted: light-dark(#696d61, #606554);
+  --bench-accent: light-dark(#3d6350, #34593e);
+  --bench-rule: light-dark(#9faaa080, #8f9c8580);
+  --bench-shadow: light-dark(#2b302522, #10160d45);
+  --bench-softshadow: light-dark(#2b302514, #10160d25);
+  --bench-cardshadow: light-dark(#49371e30, #100c0640);
+  --bench-focusedge: #596151;
+  --bench-highlight: #ffffff;
+  --bench-search: light-dark(#ffffff, #343b34);
+  --bench-searchink: light-dark(#343a32, #edf0e9);
+  --bench-brasslight: light-dark(#64816d, #8ea68d);
+  background: light-dark(#eeeee8, #272d27);
+  color: var(--bench-ink);
+  padding: 28px 24px;
+  font:
+    15px/1.5 Georgia,
+    "Times New Roman",
+    serif;
+}
+#slip-workbench * {
+  box-sizing: border-box;
+}
+#slip-workbench button {
+  font: inherit;
+  color: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+#slip-workbench button:focus-visible,
+#slip-workbench input:focus-visible {
+  outline: 2px solid var(--bench-accent);
+  outline-offset: 3px;
+}
+/* The desk is exactly --columns cards wide; the drawer takes the rest. */
+#slip-workbench {
+  --drawer-min: 340px;
+  --columns: 1;
+  --card-w: 105mm;
+  --card-scale: 1;
+  --desk-w: calc(var(--columns) * var(--card-w) + (var(--columns) - 1) * 20px);
+}
+#slip-workbench .bench-layout {
+  display: grid;
+  grid-template-columns: minmax(var(--drawer-min), 1fr) var(--desk-w);
+  gap: 30px;
+  align-items: start;
+}
+#slip-workbench .bench-cabinet,
+#slip-workbench .bench-desk {
+  min-width: 0;
+}
+#slip-workbench .bench-drawer {
+  position: relative;
+}
+#slip-workbench .bench-search {
+  display: block;
+  width: calc(100% - 32px);
+  margin: 0 16px 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--bench-paperedge);
+  border-radius: 4px;
+  background: var(--bench-search);
+  color: var(--bench-searchink);
+  font:
+    16px/1.4 system-ui,
+    sans-serif;
+}
+#slip-workbench .bench-search::placeholder {
+  color: inherit;
+  opacity: 0.65;
+}
+#slip-workbench .bench-no-results {
+  margin: 8px -20px;
+  text-align: center;
+  color: var(--bench-searchink);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+#slip-workbench .bench-spines {
+  /* Filing slot height; the script reads it to place the lens. */
+  --slot: 34px;
+  /* Largest lens scale; the script reads it. */
+  --magnify: 1.26;
+  --pad-x: 44px;
+  position: relative;
+  height: clamp(360px, calc(100dvh - 180px), 720px);
+  padding: 48px var(--pad-x);
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--bench-paperedge) transparent;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+}
+#slip-workbench .bench-slot {
+  position: relative;
+  height: var(--slot);
+}
+#slip-workbench .bench-slot:last-child {
+  height: 110px;
+}
+#slip-workbench :is(.bench-spine, .bench-guide) {
+  /* At full magnification a card spans the drawer's padding box, less room
+     for its shadow, so the clipping edge never cuts a card. */
+  --face: calc((100% + 2 * var(--pad-x) - 16px) / var(--magnify));
+  position: absolute;
+  top: 0;
+  left: calc(50% - var(--face) / 2);
+  width: var(--face);
+  height: 110px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  /* Tabs step right with the Folgezettel depth. */
+  padding: 6px 13px 6px calc(13px + min(var(--depth, 0), 6) * 14px);
+  text-align: left;
+  border: 1px solid var(--bench-paperedge);
+  border-radius: 0;
+  cursor: grab;
+  /* The drawer scrolls on touch; a long press picks a card up. */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  color: var(--bench-ink);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      var(--bench-fiber) 3px 4px
+    ),
+    linear-gradient(var(--bench-paper), var(--bench-paperback));
+  /* Project the whole 110px card, including its type, onto the trapezoid:
+     w = 1 + y/440 shrinks the bottom edge to 1/1.25 = 80% width, and the 1.25
+     vertical stretch keeps the projected height at 110px. The script animates
+     the lens through the separate `translate` and `scale` properties, which
+     apply before this fixed projection. */
+  transform: matrix3d(1, 0, 0, 0, 0, 1.25, 0, calc(1 / 440), 0, 0, 1, 0, 0, 0, 0, 1);
+  transform-origin: center top;
+  box-shadow:
+    0 3px 5px var(--bench-cardshadow),
+    0 -1px 2px var(--bench-softshadow),
+    inset 0 1px var(--bench-highlight);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+/* Section guides: tinted cards with a raised tab. */
+#slip-workbench .bench-guide {
+  cursor: default;
+  padding: 0;
+  background: color-mix(in srgb, var(--bench-accent) 16%, var(--bench-paper));
+}
+#slip-workbench .bench-guide-tab {
+  position: absolute;
+  /* Rises only into the margin below the text of the card behind. */
+  top: -5px;
+  right: 14%;
+  padding: 0 12px;
+  border: 1px solid var(--bench-paperedge);
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+  background: inherit;
+  color: var(--bench-ink);
+  font:
+    600 10px/1.5 system-ui,
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+#slip-workbench .bench-spine[data-focused="true"] {
+  border-color: var(--bench-focusedge);
+  box-shadow:
+    inset 0 0 0 1px var(--bench-focusedge),
+    0 5px 9px var(--bench-cardshadow),
+    0 -2px 4px var(--bench-softshadow);
+}
+#slip-workbench .bench-spine[data-out="true"] {
+  color: var(--bench-ghost-ink);
+  background: var(--bench-ghost);
+}
+#slip-workbench .bench-spine:focus-visible {
+  border-color: var(--bench-accent);
+}
+#slip-workbench .bench-spine-id {
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
+  min-width: 36px;
+  flex-shrink: 0;
+  color: var(--bench-accent);
+}
+#slip-workbench .bench-spine[data-out="true"] .bench-spine-id {
+  color: var(--bench-ghost-ink);
+}
+#slip-workbench .bench-spine-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font:
+    14px/1.6 Georgia,
+    serif;
+}
+#slip-workbench .bench-blotter {
+  position: relative;
+  min-height: 700px;
+}
+#slip-workbench .bench-desk-grid {
+  position: relative;
+  min-height: var(--desk-height, 700px);
+}
+/* Desk cards are the published A6 articles at their printed size, scaled as a
+   whole to --card-w. The script sets --columns, --card-w and --card-scale so
+   the desk holds a whole number of cards. */
+#slip-workbench .bench-note {
+  position: absolute;
+  width: var(--card-w);
+  height: calc(var(--card-w) * 148 / 105);
+  cursor: grab;
+}
+#slip-workbench .bench-note > article {
+  width: 105mm;
+  max-width: none;
+  height: 148mm;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  transform: scale(var(--card-scale));
+  transform-origin: 0 0;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0 3px,
+      var(--bench-fiber) 3px 4px
+    ),
+    var(--bench-paper);
+  border: 1px solid var(--bench-paperedge);
+  box-shadow:
+    1px 2px 0 var(--bench-paperback),
+    2px 4px 8px var(--bench-shadow);
+}
+/* A card longer than A6 scrolls inside its body, like a card read up close. */
+#slip-workbench .bench-note .card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+#slip-workbench .bench-note .eyebrow {
+  touch-action: none;
+  cursor: grab;
+}
+#slip-workbench .bench-note .eyebrow strong {
+  margin-left: auto;
+}
+#slip-workbench .bench-note a {
+  cursor: pointer;
+}
+#slip-workbench .bench-grip {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  cursor: grab;
+}
+#slip-workbench .bench-grip-mark {
+  color: var(--bench-muted);
+}
+#slip-workbench .bench-open-note {
+  text-decoration: none;
+}
+#slip-workbench .bench-desk-empty {
+  padding: 120px 24px;
+  text-align: center;
+  color: var(--bench-muted);
+}
+#slip-workbench .bench-announcement {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+/* The script moves the ghost with `translate`; lifting animates the rest. */
+#slip-workbench .bench-drag-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 10000;
+  margin: 0;
+  transition:
+    rotate 0.15s ease-out,
+    scale 0.15s ease-out,
+    box-shadow 0.15s ease-out;
+}
+#slip-workbench .bench-drag-ghost.bench-lifted {
+  rotate: 2deg;
+  scale: 1.03;
+  box-shadow: 0 16px 28px var(--bench-shadow);
+}
+#slip-workbench [data-drag-source="true"] {
+  opacity: 0.3;
+}
+#slip-workbench[data-dragging="true"] {
+  user-select: none;
+  cursor: grabbing;
+}
+#slip-workbench[data-dragging="true"]
+  :is(.bench-spine, .bench-note, .bench-grip) {
+  cursor: grabbing;
+}
+#slip-workbench .bench-drop-target {
+  outline: 2px dashed var(--bench-brasslight);
+  outline-offset: 8px;
+}
+#slip-workbench .bench-drop-preview {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  border: 1px dashed var(--bench-brasslight);
+  background: var(--bench-softshadow);
+}
+/* A single column shows where the card will be inserted. */
+#slip-workbench .bench-drop-preview.bench-insert {
+  height: 4px;
+  margin-top: -2px;
+  border: 0;
+  background: var(--bench-brasslight);
+}
+@media (max-width: 650px) {
+  #slip-workbench {
+    padding: 50px 16px 24px;
+  }
+  #slip-workbench .bench-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 34px;
+  }
+  #slip-workbench .bench-desk {
+    width: var(--desk-w);
+    justify-self: center;
+  }
+  #slip-workbench .bench-cabinet {
+    width: 100%;
+    max-width: 410px;
+    justify-self: center;
+  }
+  #slip-workbench .bench-spines {
+    height: 530px;
+    --pad-x: 45px;
+  }
+  #slip-workbench .bench-blotter {
+    min-height: 600px;
+  }
+}
+@media (pointer: coarse) {
+  #slip-workbench .bench-spines {
+    --slot: 44px;
+  }
+  #slip-workbench .bench-spine {
+    padding-top: 10px;
+  }
+}
+/* The script also skips the lens and flight animations. */
+@media (prefers-reduced-motion: reduce) {
+  #slip-workbench :is(.bench-spine, .bench-drag-ghost) {
+    transition: none;
+  }
+  #slip-workbench .bench-drag-ghost.bench-lifted {
+    rotate: none;
+    scale: none;
+  }
+}

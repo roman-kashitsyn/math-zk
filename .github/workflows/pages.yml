@@ -23,6 +23,8 @@ jobs:
           typst-version: '0.15.1'
       - name: Test PDF and HTML export
         run: python3 -m unittest discover -s tests
+      - name: Test drawer interactions and index view selection
+        run: node --test tests/*.test.cjs
       - name: Build site
         run: ./zk html
       - uses: actions/upload-pages-artifact@v4
