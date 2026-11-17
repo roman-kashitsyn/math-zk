@@ -169,27 +169,26 @@ body.drawer-view > .site-header {
     border-color 0.18s ease,
     box-shadow 0.18s ease;
 }
-/* Section guides: tinted cards with a raised tab. */
+/* Section guides: drawer cards on coloured stock, labelled in capitals
+   instead of an ID and title. They stay in the drawer. */
 #slip-workbench .bench-guide {
+  --stock: #c4e4b8;
   cursor: default;
-  padding: 0;
-  background: color-mix(in srgb, var(--bench-accent) 16%, var(--bench-paper));
+  border-color: color-mix(in srgb, var(--stock) 60%, #000 25%);
+  background: linear-gradient(color-mix(in srgb, var(--stock) 70%, #fff), var(--stock) 8px);
 }
-#slip-workbench .bench-guide-tab {
-  position: absolute;
-  /* Rises only into the margin below the text of the card behind. */
-  top: -5px;
-  right: 14%;
-  padding: 0 12px;
-  border: 1px solid var(--bench-paperedge);
-  border-bottom: 0;
-  border-radius: 5px 5px 0 0;
-  background: inherit;
-  color: var(--bench-ink);
+#slip-workbench .bench-guide[data-section="sources"] {
+  --stock: #bde3f2;
+}
+#slip-workbench .bench-guide[data-section="inbox"] {
+  --stock: #f1e69a;
+}
+#slip-workbench .bench-guide-title {
+  color: #2f352c;
   font:
-    600 10px/1.5 system-ui,
+    600 12px/1.85 system-ui,
     sans-serif;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 #slip-workbench .bench-spine[data-focused="true"] {
