@@ -26,9 +26,9 @@
 #let card-paper = "a6" // 105 × 148 mm
 #let max-card-pages = 2 // front and back
 
-#let text-font = "Libertinus Serif"
-#let meta-font = "Libertinus Sans"
-#let id-font = "DejaVu Sans Mono"
+#let text-font = "Palatino"
+#let meta-font = "Palatino"
+#let heading-font = "Optima"
 #let muted = rgb("#586561")
 #let accent = rgb("#24594f")
 #let rule = rgb("#c7d1cc")
@@ -53,7 +53,7 @@
 }
 
 #let id-tag(id, ink: accent) = box(
-  text(font: id-font, size: 0.72em, fill: ink,
+  text(font: meta-font, size: 0.8em, fill: ink,
     "[" + if id.starts-with("jot-") { "inbox" } else { id } + "]"),
 )
 
@@ -207,7 +207,7 @@
       text(tracking: 0.08em, if n.kind == "source" { "SOURCE" }
         else if n.kind == "inbox" { "INBOX" } else { "NOTE" })
     },
-    text(font: id-font, size: if n.kind == "inbox" { 8pt } else { 10.5pt },
+    text(font: meta-font, size: if n.kind == "inbox" { 8pt } else { 10.5pt },
       weight: "bold", fill: accent,
       if n.kind == "inbox" {
         let date = n.id.slice(4, 12)
@@ -322,10 +322,10 @@
       else { none },
   )
   // Keep Typst's default New Computer Modern Math.
-  show heading: set text(font: meta-font)
-  show heading.where(level: 1): set text(font: meta-font, size: 17pt)
+  show heading: set text(font: heading-font)
+  show heading.where(level: 1): set text(font: heading-font, size: 17pt)
   show heading.where(level: 1): set block(above: 0pt, below: 1.05em)
-  show heading.where(level: 2): set text(font: meta-font, size: 10pt)
+  show heading.where(level: 2): set text(font: heading-font, size: 10pt)
   show link: set text(fill: accent)
   body
 }
@@ -355,7 +355,7 @@
       if sys.inputs.at("card-renderer", default: "svg") == "svg" {
         html.elem("div", attrs: (class: "card-body card-svg"), html.frame(context {
           // Metadata in the frame remains visible to bundle queries and links.
-          show heading: it => block(text(font: meta-font, it.body))
+          show heading: it => block(text(font: heading-font, it.body))
           show pagebreak: line(length: 100%, stroke: 0.4pt + rule)
           card-style(block(width: 89mm, body))
         }))
@@ -384,7 +384,7 @@
     footer: _footer,
     footer-descent: 35%,
   )
-  show heading.where(level: 1): set text(font: meta-font, style: "normal")
+  show heading.where(level: 1): set text(font: heading-font, style: "normal")
 
   pagebreak(weak: true)
   [#metadata((id: id, kind: kind))<zk-note-start>]

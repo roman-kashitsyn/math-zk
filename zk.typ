@@ -26,7 +26,7 @@
   set par(justify: false)
   let entry(n, depth, id-width) = block(above: 0.45em, below: 0.45em, pad(left: depth * 0.8em, link(
     n.loc,
-    [#box(width: id-width, text(font: id-font, size: 0.85em, n.id))#n.title #box(width: 1fr, repeat[.~]) #n.first],
+    [#box(width: id-width, text(font: meta-font, weight: "bold", fill: accent, n.id))#n.title #box(width: 1fr, repeat[.~]) #n.first],
   )))
   let notes = all-notes()
   for n in notes.filter(n => n.kind == "card") {
