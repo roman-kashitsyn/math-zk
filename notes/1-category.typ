@@ -1,7 +1,7 @@
 #import "/lib/zk.typ": *
 
 = Category
-#tags("ct", "defn")
+#tags("ct")
 
 #defn[
   A _category_ $cal(C)$ is an object defined by the following components:

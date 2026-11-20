@@ -21,6 +21,11 @@
 // Notes compile as part of `zk.typ` (PDF) or `web.typ` (HTML), which give
 // links, backlinks and the register. Single PDF cards are cut out by `./zk`.
 
+// --- Packages ---------------------------------------------------------------
+
+// Commutative diagrams; re-exported so notes can use `diagram`/`node`/`edge`.
+#import "@preview/fletcher:0.6.0": diagram, node, edge
+
 // --- Card geometry ----------------------------------------------------------
 
 #let card-paper = "a6" // 105 × 148 mm
@@ -186,6 +191,9 @@
 
 // Something to come back to; rendered visibly so it isn't forgotten on paper.
 #let todo(body) = text(fill: red.darken(20%))[[TODO: #body]]
+
+// Commutative diagrams
+#let hom = edge.with(in-math: true)
 
 // --- The card ---------------------------------------------------------------
 
