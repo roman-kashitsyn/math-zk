@@ -6,12 +6,9 @@
 #defn[
   An _initial object_ in a category $cal(C)$
   is an object that has a unique arrow
-  to every other object in $cal(C)$.
+  to every other object $X$ in $cal(C)$.
 
-  $I in "ob"(cal(C))$ is initial if
-  $forall X in "ob"(cal(C))$ $exists !h : I -> X$.
-
-  #align(center, diagram($ I hom(!h, ->) & X \ $))
+  #align(center, diagram($ I hom(!, ->) & X \ $))
 ]
 
 #separator
@@ -20,4 +17,4 @@
   In $"Set"$, $emptyset$ is the only initial object.
 ]
 
-#cite("pierce1991")[§1.4]
+#cite("pierce1991")[§1.4.1]
