@@ -115,7 +115,8 @@
       Drag cards onto the desk or back into the drawer; on a touch screen, hold a card to pick it up.
       Links between cards on the desk bring the linked card out beside them.
       With the keyboard, press Space to pick up a card, D for the desk or R for the drawer,
-      arrow keys to position, and Enter to drop. Escape cancels.
+      arrow keys to move between slots, and Enter to drop. Dropping on an occupied slot swaps the two cards.
+      Escape cancels.
     ]
   ]
 ]

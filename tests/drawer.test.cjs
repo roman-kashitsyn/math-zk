@@ -9,8 +9,10 @@ const test = require("node:test");
 const source = fs
   .readFileSync(path.join(__dirname, "../lib/drawer.js"), "utf8")
   .replace(/^export /gm, "");
-const { GAP, A6, lensAt, deskGeometry, outlineDepths, freeSpot, insertionIndex } = new Function(
-  `${source}; return { GAP, A6, lensAt, deskGeometry, outlineDepths, freeSpot, insertionIndex };`,
+const { GAP, A6, lensAt, deskGeometry, outlineDepths, slotAt, nearestFree, gridLayout, dropOnGrid, insertionIndex } =
+  new Function(
+    `${source}; return { GAP, A6, lensAt, deskGeometry, outlineDepths, slotAt, nearestFree, gridLayout, dropOnGrid, insertionIndex };`,
+  
 )();
 const M = 1.26;
 
@@ -41,6 +43,7 @@ test("the desk holds a whole number of A6 cards exactly", () => {
     assert.equal(width, A6.width);
     assert.ok(Math.abs(height / width - 148 / 105) < 1e-12);
     assert.equal(pitch, width + GAP);
+    assert.equal(deskGeometry(room).rowPitch, height + GAP);
     const desk = columns * width + (columns - 1) * GAP;
     assert.ok(desk <= room + 1e-9, `${columns} columns fit in ${room}px`);
     assert.ok(desk + pitch > room, `a further column would not fit in ${room}px`);
@@ -64,30 +67,54 @@ test("outline depth follows Folgezettel IDs and skips missing ancestors", () => 
   });
 });
 
-const geometry = { columns: 2, height: 500, pitch: 400 };
-const apart = (a, b) =>
-  a.column !== b.column || a.top + geometry.height + GAP <= b.top || b.top + geometry.height + GAP <= a.top;
+const geometry = { columns: 3, pitch: 400, rowPitch: 540 };
+const keys = (slots) => new Set([...slots.values()].map(({ column, row }) => `${column},${row}`));
 
-test("a free spot snaps to a column and stays close to the drop point", () => {
-  const placed = [{ column: 0, top: 0 }];
-  assert.deepEqual(freeSpot({ left: 330, top: 40 }, placed, geometry), { column: 1, top: 40, left: 400 });
-  assert.deepEqual(freeSpot({ left: 10, top: 300 }, [], geometry), { column: 0, top: 300, left: 0 });
-  // Column 0 is taken at the top; the nearest free spot is beside it.
-  assert.deepEqual(freeSpot({ left: 20, top: 30 }, placed, geometry), { column: 1, top: 30, left: 400 });
-  // With the row full, the card goes below, in the nearer column.
-  placed.push({ column: 1, top: 0 });
-  assert.deepEqual(freeSpot({ left: 20, top: 30 }, placed, geometry), { column: 0, top: 520, left: 0 });
+test("a drop point snaps to the nearest slot on the desk", () => {
+  assert.deepEqual(slotAt({ left: 190, top: 260 }, geometry), { column: 0, row: 0 });
+  assert.deepEqual(slotAt({ left: 210, top: 280 }, geometry), { column: 1, row: 1 });
+  assert.deepEqual(slotAt({ left: -300, top: -90 }, geometry), { column: 0, row: 0 });
+  assert.deepEqual(slotAt({ left: 5000, top: 1700 }, geometry), { column: 2, row: 3 });
 });
 
-test("successive free spots never overlap", () => {
-  const placed = [];
-  for (let i = 0; i < 14; i++) {
-    const spot = freeSpot({ left: (i * 131) % 700, top: (i * 89) % 900 }, placed, geometry);
-    assert.ok(spot.column >= 0 && spot.column < geometry.columns && spot.top >= 0);
-    assert.equal(spot.left, spot.column * geometry.pitch);
-    for (const other of placed) assert.ok(apart(spot, other));
-    placed.push(spot);
+test("the nearest free slot prefers the same row, then upper rows and left columns", () => {
+  assert.deepEqual(nearestFree({ column: 1, row: 0 }, new Set(), geometry), { column: 1, row: 0 });
+  assert.deepEqual(nearestFree({ column: 1, row: 0 }, new Set(["1,0"]), geometry), { column: 0, row: 0 });
+  assert.deepEqual(nearestFree({ column: 7, row: 0 }, new Set(), geometry), { column: 2, row: 0 });
+  // With the first row full, the card goes below.
+  assert.deepEqual(nearestFree({ column: 2, row: 0 }, new Set(["0,0", "1,0", "2,0"]), geometry), { column: 2, row: 1 });
+});
+
+test("a grid layout keeps wanted slots and never stacks two cards", () => {
+  const cards = [
+    { id: "a", want: { column: 1, row: 2 } },
+    { id: "b", want: { column: 1, row: 2 } },
+    { id: "c", want: { column: 5, row: 0 } },
+    { id: "d" },
+  ];
+  const slots = gridLayout(cards, geometry);
+  assert.deepEqual(slots.get("a"), { column: 1, row: 2 }, "the first card wins its slot");
+  assert.deepEqual(slots.get("c"), { column: 2, row: 0 }, "a slot beyond the desk moves inward");
+  assert.deepEqual(slots.get("d"), { column: 0, row: 0 });
+  assert.equal(keys(slots).size, cards.length);
+  for (let n = 0; n < 20; n++) {
+    const many = Array.from({ length: n }, (_, i) => ({ id: i, want: { column: (i * 7) % 4, row: (i * 3) % 5 } }));
+    assert.equal(keys(gridLayout(many, geometry)).size, n);
   }
+});
+
+test("dropping on an occupied slot swaps, or moves a new card's way", () => {
+  const slots = new Map([["a", { column: 0, row: 0 }], ["b", { column: 1, row: 0 }]]);
+  assert.deepEqual(dropOnGrid("a", { column: 2, row: 0 }, slots, geometry), { slot: { column: 2, row: 0 } });
+  assert.deepEqual(dropOnGrid("a", { column: 0, row: 0 }, slots, geometry), { slot: { column: 0, row: 0 } });
+  assert.deepEqual(dropOnGrid("a", { column: 1, row: 0 }, slots, geometry), {
+    slot: { column: 1, row: 0 },
+    displaced: { id: "b", slot: { column: 0, row: 0 } },
+  });
+  assert.deepEqual(dropOnGrid("new", { column: 1, row: 0 }, slots, geometry), {
+    slot: { column: 1, row: 0 },
+    displaced: { id: "b", slot: { column: 2, row: 0 } },
+  });
 });
 
 test("a single column inserts before the first card below the drop point", () => {

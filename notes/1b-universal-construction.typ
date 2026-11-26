@@ -16,3 +16,5 @@
   as the terminal object in the constructed category.
   That canonical object is said to have the _universal property_.
 ]
+
+#cite("pierce1991")[§1.6]
